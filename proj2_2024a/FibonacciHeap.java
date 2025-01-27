@@ -5,7 +5,7 @@
  */
 public class FibonacciHeap {
 
-    private HeapNode min;
+    public HeapNode min;
     private int size;
     private int totalLinks;
     private int totalCuts;
@@ -66,16 +66,23 @@ public class FibonacciHeap {
         }
 
         HeapNode oldMin = min;
+
+        // Add all children of the minimum node to the root list
         if (min.child != null) {
             HeapNode child = min.child;
             do {
+                HeapNode nextChild = child.next;
+                // Detach the child and add to root list
                 child.parent = null;
-                child = child.next;
+                child.next = min.next;
+                child.prev = min;
+                min.next.prev = child;
+                min.next = child;
+                child = nextChild;
             } while (child != min.child);
-            // Add the children to the root list
-            mergeNodes(min, min.child);
         }
 
+        // Remove the minimum node from the root list
         removeNode(min);
         size--;
 
@@ -85,6 +92,7 @@ public class FibonacciHeap {
             min = oldMin.next;
             consolidate();
         }
+        totalCuts += oldMin.rank;
     }
 
     /**
@@ -101,10 +109,9 @@ public class FibonacciHeap {
         x.key -= diff;
         if (x.parent != null && x.key < x.parent.key) {
             cut(x);
-            cascadingCut(x.parent);
         }
 
-        if (x.key < min.key) {
+        if (x.key <= min.key) {
             min = x;
         }
     }
@@ -115,8 +122,30 @@ public class FibonacciHeap {
      * @param x The node to delete.
      */
     public void delete(HeapNode x) {
-        decreaseKey(x, x.key - Integer.MIN_VALUE);
-        deleteMin();
+        if (x == min) {
+            deleteMin();
+        } else {
+            if (x.parent != null) {
+                cut(x);
+            }
+            // Add all children of the node to be deleted to the root list
+            if (x.child != null) {
+                HeapNode child = x.child;
+                do {
+                    HeapNode nextChild = child.next;
+                    // Detach the child and add to root list
+                    child.parent = null;
+                    child.next = min.next;
+                    child.prev = min;
+                    min.next.prev = child;
+                    min.next = child;
+                    child = nextChild;
+                } while (child != x.child);
+            }
+            removeNode(x);
+            size--;
+        }
+        totalCuts += x.rank;
     }
 
     /**
@@ -130,7 +159,7 @@ public class FibonacciHeap {
 
     /**
      * Return the total number of cuts performed.
-     *
+     *s
      * @return The total number of cuts (node separations) performed in the heap.
      */
     public int totalCuts() {
@@ -186,7 +215,69 @@ public class FibonacciHeap {
         return count;
     }
 
+    /**
+     * Display the heap structure visually in a tree-like format.
+     */
+    public void display() {
+        if (min == null) {
+            System.out.println("The heap is empty.");
+            return;
+        }
+
+        System.out.println("Fibonacci Heap:");
+        System.out.println("Minimum Node: (" + min.key + ", \"" + min.info + "\")");
+        System.out.println("totalCuts: " + totalCuts + ", totalLinks: " + totalLinks + ", size: " + size);
+
+        HeapNode current = min;
+        int treeNumber = 1;
+        do {
+            System.out.println("Tree " + treeNumber + ":");
+            printTree(current, "", true);
+            current = current.next;
+            treeNumber++;
+        } while (current != min);
+    }
+
+    /**
+     * Print a tree starting from the given node visually.
+     *
+     * @param node    The root node of the tree to print.
+     * @param prefix  The prefix for indentation.
+     * @param isLast  Indicates whether the current node is the last child.
+     */
+    private void printTree(HeapNode node, String prefix, boolean isLast) {
+        if (node == null) return;
+
+        // Print the current node
+        System.out.print(prefix);
+        System.out.print(isLast ? "└── " : "├── ");
+        System.out.println("(" + node.key + ", \"" + node.info + "\")");
+
+        // Prepare prefix for the next level
+        prefix += isLast ? "    " : "│   ";
+
+        // Recursively print children
+        if (node.child != null) {
+            HeapNode child = node.child;
+            do {
+                printTree(child, prefix, child.next == node.child);
+                child = child.next;
+            } while (child != node.child);
+        }
+    }
+
     // Helper functions
+
+    /**
+	  * 
+	  * The method returns true if and only if the heap
+	  * is empty.
+	  *   
+	  */
+	 public boolean empty()
+	 {
+		 return size == 0;
+	 }
 
     /**
      * Consolidate trees of the same rank.
@@ -194,8 +285,10 @@ public class FibonacciHeap {
      * This function merges trees in the root list to ensure that no two trees have the same rank.
      */
     private void consolidate() {
-        HeapNode[] aux = new HeapNode[size];
+        HeapNode[] aux = new HeapNode[logBase2(size) + 1];
         HeapNode current = min;
+
+        // Process each node in the root list
         do {
             HeapNode next = current.next;
             while (aux[current.rank] != null) {
@@ -206,21 +299,43 @@ public class FibonacciHeap {
             current = next;
         } while (current != min);
 
+        // Reconstruct the root list and find the new min
         min = null;
         for (HeapNode node : aux) {
             if (node != null) {
-                if (min == null || node.key < min.key) {
+                if (min == null) {
                     min = node;
+                    min.next = min.prev = min;
+                } else {
+                    node.next = min.next;
+                    node.prev = min;
+                    min.next.prev = node;
+                    min.next = node;
+                    if (node.key < min.key) {
+                        min = node;
+                    }
                 }
             }
         }
     }
 
     /**
+     * Helper method to calculate log base 2 of an integer.
+     *
+     * @param n The number to calculate the logarithm for.
+     * @return The integer value of log base 2 of n.
+     */
+    private int logBase2(int n) {
+        return (int) (Math.log(n) / Math.log(2));
+    }
+
+    /**
      * Link two trees of the same rank.
      *
-     * @param a The first tree.
-     * @param b The second tree.
+     * Makes b the child of a.
+     *
+     * @param a The first tree (parent after linking).
+     * @param b The second tree (child after linking).
      * @return The resulting tree after linking.
      */
     private HeapNode link(HeapNode a, HeapNode b) {
@@ -229,13 +344,19 @@ public class FibonacciHeap {
             a = b;
             b = temp;
         }
-        removeNode(b);
+        // Remove b from the root list
+        // TODO: Does this need to be done?
+        // removeNode(b);
+        // Make b a child of a
         b.parent = a;
-        b.next = b.prev = b;
         if (a.child == null) {
             a.child = b;
+            b.next = b.prev = b;
         } else {
-            mergeNodes(a.child, b);
+            b.next = a.child.next;
+            b.prev = a.child;
+            a.child.next.prev = b;
+            a.child.next = b;
         }
         a.rank++;
         totalLinks++;
@@ -256,8 +377,14 @@ public class FibonacciHeap {
             x.parent.rank--;
             x.parent = null;
             x.mark = false;
-            mergeNodes(min, x);
+            // Add to root list
+            x.next = min.next;
+            x.prev = min;
+            min.next.prev = x;
+            min.next = x;
             totalCuts++;
+            // Call cascadingCut on the parent
+            cascadingCut(x.parent);
         }
     }
 
@@ -267,13 +394,15 @@ public class FibonacciHeap {
      * @param x The node to start cascading cuts from.
      */
     private void cascadingCut(HeapNode x) {
+        if (x == null) {
+            return;
+        }
         HeapNode parent = x.parent;
         if (parent != null) {
             if (!x.mark) {
                 x.mark = true;
             } else {
                 cut(x);
-                cascadingCut(parent);
             }
         }
     }
@@ -336,6 +465,11 @@ public class FibonacciHeap {
             this.parent = null;
             this.rank = 0;
             this.mark = false;
+        }
+
+
+        public int getKey() {
+            return key;
         }
     }
 }
