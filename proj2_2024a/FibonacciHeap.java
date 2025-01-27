@@ -92,6 +92,7 @@ public class FibonacciHeap {
             min = oldMin.next;
             consolidate();
         }
+        totalCuts += oldMin.rank;
     }
 
     /**
@@ -108,7 +109,6 @@ public class FibonacciHeap {
         x.key -= diff;
         if (x.parent != null && x.key < x.parent.key) {
             cut(x);
-            cascadingCut(x.parent);
         }
 
         if (x.key <= min.key) {
@@ -122,17 +122,33 @@ public class FibonacciHeap {
      * @param x The node to delete.
      */
     public void delete(HeapNode x) {
+        if (x == null) {
+            return;
+        }
         if (x == min) {
             deleteMin();
         } else {
             if (x.parent != null) {
                 cut(x);
-                cascadingCut(x.parent);
             }
-            // TODO: Does we need to update cuts?
+            // Add all children of the node to be deleted to the root list
+            if (x.child != null) {
+                HeapNode child = x.child;
+                do {
+                    HeapNode nextChild = child.next;
+                    // Detach the child and add to root list
+                    child.parent = null;
+                    child.next = min.next;
+                    child.prev = min;
+                    min.next.prev = child;
+                    min.next = child;
+                    child = nextChild;
+                } while (child != x.child);
+            }
             removeNode(x);
             size--;
         }
+        totalCuts += x.rank;
     }
 
     /**
@@ -370,6 +386,8 @@ public class FibonacciHeap {
             min.next.prev = x;
             min.next = x;
             totalCuts++;
+            // Call cascadingCut on the parent
+            cascadingCut(x.parent);
         }
     }
 
@@ -379,13 +397,15 @@ public class FibonacciHeap {
      * @param x The node to start cascading cuts from.
      */
     private void cascadingCut(HeapNode x) {
+        if (x == null) {
+            return;
+        }
         HeapNode parent = x.parent;
         if (parent != null) {
             if (!x.mark) {
                 x.mark = true;
             } else {
                 cut(x);
-                cascadingCut(parent);
             }
         }
     }
