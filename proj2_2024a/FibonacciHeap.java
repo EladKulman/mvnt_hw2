@@ -107,13 +107,15 @@ public class FibonacciHeap {
         }
 
         x.key -= diff;
-        if (x.parent != null && x.key < x.parent.key) {
-            cut(x);
-        }
+        HeapNode parent = x.parent;
 
-        if (x.key <= min.key) {
-            min = x;
-        }
+		if (parent != null && x.key < parent.key) {
+			cut(x);
+			cascadingCut(parent);
+		}
+		if (x.key <= this.min.key) {
+			this.min = x;
+		}
     }
 
     /**
@@ -122,33 +124,30 @@ public class FibonacciHeap {
      * @param x The node to delete.
      */
     public void delete(HeapNode x) {
-        if (x == null) {
-            return;
-        }
-        if (x == min) {
-            deleteMin();
-        } else {
-            if (x.parent != null) {
-                cut(x);
-            }
-            // Add all children of the node to be deleted to the root list
-            if (x.child != null) {
-                HeapNode child = x.child;
-                do {
-                    HeapNode nextChild = child.next;
-                    // Detach the child and add to root list
-                    child.parent = null;
-                    child.next = min.next;
-                    child.prev = min;
-                    min.next.prev = child;
-                    min.next = child;
-                    child = nextChild;
-                } while (child != x.child);
-            }
-            removeNode(x);
-            size--;
-        }
-        totalCuts += x.rank;
+		if (x == null || this.min == null) {
+			return;
+		}
+		if (x == this.min) {
+			deleteMin();
+			return;
+		}
+
+		HeapNode oldMin = this.min; // Save the real min
+		decreaseKey(x, x.key - oldMin.key + 1); // Make x artificially smaller than the current min
+
+		if (x.child != null) {
+			HeapNode child = x.child;
+			do {
+				child.parent = null;
+				child = child.next;
+			} while (child != x.child);
+			mergeNodes(this.min, x.child);
+		}
+
+		removeNode(x);
+		this.size--;
+		this.min = oldMin; // Restore the real min
+		totalCuts += x.rank;
     }
 
     /**
@@ -347,9 +346,6 @@ public class FibonacciHeap {
             a = b;
             b = temp;
         }
-        // Remove b from the root list
-        // TODO: Does this need to be done?
-        // removeNode(b);
         // Make b a child of a
         b.parent = a;
         if (a.child == null) {
@@ -372,43 +368,40 @@ public class FibonacciHeap {
      * @param x The node to cut.
      */
     private void cut(HeapNode x) {
-        if (x.parent != null) {
-            if (x.parent.child == x) {
-                x.parent.child = x.next == x ? null : x.next;
-            }
-            removeNode(x);
-            x.parent.rank--;
-            x.parent = null;
-            x.mark = false;
-            // Add to root list
-            x.next = min.next;
-            x.prev = min;
-            min.next.prev = x;
-            min.next = x;
-            totalCuts++;
-            // Call cascadingCut on the parent
-            cascadingCut(x.parent);
-        }
-    }
+		HeapNode parent = x.parent;
+		removeNode(x);
+		if (parent.child == x) {
+			parent.child = (x.next != x) ? x.next : null;
+		}
+		parent.rank--;
+		x.parent = null;
+		x.mark = false;
+        x.parent = null;
+        x.next = min.next;
+        x.prev = min;
+        min.next.prev = x;
+        min.next = x;
+		this.totalCuts++;
+
+		
+	}
 
     /**
      * Perform cascading cuts for a node and its ancestors.
      *
      * @param x The node to start cascading cuts from.
      */
-    private void cascadingCut(HeapNode x) {
-        if (x == null) {
-            return;
-        }
-        HeapNode parent = x.parent;
-        if (parent != null) {
-            if (!x.mark) {
-                x.mark = true;
-            } else {
-                cut(x);
-            }
-        }
-    }
+    private void cascadingCut(HeapNode y) {
+		HeapNode parent = y.parent;
+		if (parent != null) {
+			if (!y.mark) {
+				y.mark = true;
+			} else {
+				cut(y);
+				cascadingCut(parent);
+			}
+		}
+	}
 
     /**
      * Merge two circular doubly linked lists.
