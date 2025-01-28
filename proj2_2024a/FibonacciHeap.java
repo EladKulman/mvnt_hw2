@@ -433,17 +433,11 @@ public class FibonacciHeap {
      * @param x The node to remove.
      */
     private void removeNode(HeapNode x) {
-        if (x.next == x){
-            if (x.parent != null){
-                HeapNode parent = x.parent;
-            parent.child = null;
-            parent.rank -= 1;
-            }
-            
-        } else {
-            x.prev.next = x.next;
-            x.next.prev = x.prev;
+        if (x.next == x) {
+            return;
         }
+        x.prev.next = x.next;
+        x.next.prev = x.prev;
     }
 
     /**
